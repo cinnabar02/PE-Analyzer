@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "PE-Analyzer": {
+      "commandName": "Project",
+      "commandLineArgs": "C:\\zapret\\PE2.exe"
+    }
+  }
+}
