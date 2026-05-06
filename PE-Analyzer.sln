@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.37216.2 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PE-Analyzer", "PE-Analyzer\PE-Analyzer.csproj", "{114D5D3F-C5A9-45A8-BA47-5CB665953F2D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{114D5D3F-C5A9-45A8-BA47-5CB665953F2D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{114D5D3F-C5A9-45A8-BA47-5CB665953F2D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{114D5D3F-C5A9-45A8-BA47-5CB665953F2D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{114D5D3F-C5A9-45A8-BA47-5CB665953F2D}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {513C94E7-2A25-4233-BE06-B300A1B3B051}
+	EndGlobalSection
+EndGlobal
