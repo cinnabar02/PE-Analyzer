@@ -1,6 +1,5 @@
 ﻿using System;
 using System.IO;
-using System.Reflection.PortableExecutable;
 
 class Program
 {
@@ -77,11 +76,76 @@ class Program
 
             ushort Characteristics = reader.ReadUInt16();
 
-            Console.WriteLine("Характеристики:");
+            Console.WriteLine("\nХарактеристики:");
             if ((Characteristics & 0x0002) != 0) Console.WriteLine("0x0002 - File is executable");
             if ((Characteristics & 0x0020) != 0) Console.WriteLine("0x0020 - App can handle >2gb addresses");
             if ((Characteristics & 0x2000) != 0) Console.WriteLine("0x2000 - File is a DLL");
+            Console.WriteLine("\n");
 
+            // чтение поля Magic структуры IMAGE_OPTIONAL_HEADER
+
+            ushort Magic = reader.ReadUInt16();
+
+            if (Magic == 0x010B)
+            {
+                Console.WriteLine($"Файл является 32-разрядным - поле Magic: 0x{Magic:X4}");
+            }
+            else
+            {
+                Console.WriteLine($"Файл является 64-разрядным - поле Magic: 0x{Magic:X4}");
+            }
+
+            reader.BaseStream.Seek(14, SeekOrigin.Current);
+
+            // чтение поля AddressOfEntryPoint (4 байта)
+
+            uint AddressOfEntryPoint = reader.ReadUInt32();
+
+            Console.WriteLine($"Адрес точки входа в программу: 0x{AddressOfEntryPoint:X8}");
+
+            // чтение поля ImageBase
+
+            reader.BaseStream.Seek(4, SeekOrigin.Current);
+
+            if (Magic == 0x010B)
+            {
+                reader.BaseStream.Seek(4, SeekOrigin.Current);
+                uint ImageBase = reader.ReadUInt32();
+                Console.WriteLine($"Адрес загрузки образа по умолчанию: 0x{ImageBase:X8}");
+            }
+            else
+            {
+                ulong ImageBase = reader.ReadUInt64();
+                Console.WriteLine($"Адрес загрузки образа по умолчанию: 0x{ImageBase:X16}");
+            }
+
+            // чтение поля SectionAlignment и FileAlignment
+
+            uint SectionAlignment = reader.ReadUInt32();
+            uint FileAlignment = reader.ReadUInt32();
+            Console.WriteLine($"Виртуальное выравнивание: 0x{SectionAlignment:X8}");
+            Console.WriteLine($"Физическое выравнивание: 0x{FileAlignment:X8}");
+
+            // чтение SizeOfImage
+
+            reader.BaseStream.Seek(16, SeekOrigin.Current);
+
+            uint SizeOfImage = reader.ReadUInt32();
+
+            Console.WriteLine($"Размер образа PE-файла в памяти: {SizeOfImage} байт");
+
+            // чтение DllCharacteristic
+
+            reader.BaseStream.Seek(10, SeekOrigin.Current);
+
+            ushort DllCharacteristic = reader.ReadUInt16();
+
+            Console.WriteLine("\nDLL Характеристики:");
+            if ((DllCharacteristic & 0x0020) != 0) Console.WriteLine("0x0020 - Может обрабатывать 64-разрядное виртуальное адресное пространство");
+            if ((DllCharacteristic & 0x0040) != 0) Console.WriteLine("0x0040 - DLL можно переместить во время загрузки");
+            if ((DllCharacteristic & 0x0100) != 0) Console.WriteLine("0x0100 - Совместимо с NX");
+            if ((DllCharacteristic & 0x4000) != 0) Console.WriteLine("0x4000 - Поддерживает функцию управления Flow Guard");
+            Console.WriteLine("\n");
         }
     }
 }
