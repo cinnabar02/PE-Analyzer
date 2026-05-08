@@ -32,6 +32,7 @@ class Program
             Console.WriteLine("Передайте путь к файлу аргументом");
             Console.WriteLine("\nНажмите любую клавишу для выхода");
             Console.ReadLine();
+            return;
         }
 
         string filepath = args[0];
@@ -41,6 +42,7 @@ class Program
             Console.WriteLine("Файл не найден");
             Console.WriteLine("\nНажмите любую клавишу для выхода");
             Console.ReadLine();
+            return;
         }
 
         using (BinaryReader reader = new BinaryReader(File.Open(filepath, FileMode.Open)))
@@ -54,6 +56,7 @@ class Program
                 Console.WriteLine("DOS-заголовок не найден");
                 Console.WriteLine("\nНажмите любую клавишу для выхода");
                 Console.ReadLine();
+                return;
             }
 
             // чтение e_lfanew со смещением к NT-заголовку
@@ -72,6 +75,7 @@ class Program
                 Console.WriteLine("PE-заголовок не найден");
                 Console.WriteLine("\nНажмите любую клавишу для выхода");
                 Console.ReadLine();
+                return;
             }
 
             string Filename = Path.GetFileName(filepath);
