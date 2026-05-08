@@ -1,8 +1,30 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
+using System.Collections.Generic;
+
+
+struct Section
+{
+    public uint VirtualAddress;
+    public uint VirtualSize;
+    public uint PointerToRawData;
+}
 
 class Program
 {
+    static uint RVAToOffset(List<Section> sections, uint RVA)
+    {
+        foreach (Section s in sections)
+        {
+            if (RVA >= s.VirtualAddress && RVA < s.VirtualAddress + s.VirtualSize)
+            {
+                return RVA - s.VirtualAddress + s.PointerToRawData;
+            }
+        }
+        return 0;
+    }
+
     static void Main(string[] args)
     {
         if (args.Length == 0)
@@ -77,9 +99,9 @@ class Program
             ushort Characteristics = reader.ReadUInt16();
 
             Console.WriteLine("\nХарактеристики:");
-            if ((Characteristics & 0x0002) != 0) Console.WriteLine("0x0002 - File is executable");
-            if ((Characteristics & 0x0020) != 0) Console.WriteLine("0x0020 - App can handle >2gb addresses");
-            if ((Characteristics & 0x2000) != 0) Console.WriteLine("0x2000 - File is a DLL");
+            if ((Characteristics & 0x0002) != 0) Console.WriteLine("0x0002 - Файл образа действителен и может быть запущен");
+            if ((Characteristics & 0x0020) != 0) Console.WriteLine("0x0020 - Приложение может обрабатывать > 2 ГБ-адресов");
+            if ((Characteristics & 0x2000) != 0) Console.WriteLine("0x2000 - Библиотека динамической компоновки (DLL)");
             Console.WriteLine("\n");
 
             // чтение поля Magic структуры IMAGE_OPTIONAL_HEADER
@@ -146,6 +168,176 @@ class Program
             if ((DllCharacteristic & 0x0100) != 0) Console.WriteLine("0x0100 - Совместимо с NX");
             if ((DllCharacteristic & 0x4000) != 0) Console.WriteLine("0x4000 - Поддерживает функцию управления Flow Guard");
             Console.WriteLine("\n");
+
+            // чтение структуры IMAGE_DATA_DIRECTORY
+
+            if (Magic == 0x010B)
+            {
+                reader.BaseStream.Seek(24, SeekOrigin.Current);
+            }
+            else
+            {
+                reader.BaseStream.Seek(40, SeekOrigin.Current);
+            }
+
+            uint ExportRVA = reader.ReadUInt32();
+            uint ExportSize = reader.ReadUInt32();
+
+            uint ImportRVA = reader.ReadUInt32();
+            uint ImportSize = reader.ReadUInt32();
+
+            uint ResourcesRVA = reader.ReadUInt32();
+            uint ResourcesSize = reader.ReadUInt32();
+
+            if (ResourcesSize > 0) Console.WriteLine("Файл содержит ресурсы");
+
+            reader.BaseStream.Seek(16, SeekOrigin.Current);
+
+            uint RelocationRVA = reader.ReadUInt32();
+            uint RelocationSize = reader.ReadUInt32();
+
+            if (RelocationSize > 0) Console.WriteLine("Файл содержит релокации");
+
+            // чтение структуры IMAGE_SECTION_HEADER
+
+            reader.BaseStream.Seek(80, SeekOrigin.Current);
+
+            Console.WriteLine("\nСекции\n" + $"{"#",-5} {"Имя",-13} {"Вирт. размер",-15} {"Вирт. адрес",-15} {"Физ. размер",-15} {"Физ. смещение",-15} {"Флаги",-15}");
+
+            List<Section> sections = new List<Section>();
+
+            for (int i = 0; i < NumberOfSections; i++)
+            {
+                byte[] nameBytes = reader.ReadBytes(8);
+                string name = System.Text.Encoding.ASCII.GetString(nameBytes).TrimEnd('\0');
+
+                uint VirtualSize = reader.ReadUInt32();
+                uint VirtualAddress = reader.ReadUInt32();
+                uint SizeOfRawData = reader.ReadUInt32();
+                uint PointerToRawData = reader.ReadUInt32();
+
+                reader.BaseStream.Seek(12, SeekOrigin.Current);
+
+                uint SectionCharacteristics = reader.ReadUInt32();
+
+                sections.Add(new Section { VirtualAddress = VirtualAddress, VirtualSize = VirtualSize, PointerToRawData = PointerToRawData, });
+
+                string OutputCharacteristics = "";
+
+                if ((SectionCharacteristics & 0x20000000) != 0) OutputCharacteristics += "E";
+                if ((SectionCharacteristics & 0x40000000) != 0) OutputCharacteristics += "R";
+                if ((SectionCharacteristics & 0x80000000) != 0) OutputCharacteristics += "W";
+
+                string virtSize = $"{VirtualSize} байт";
+                string rawSize = $"{SizeOfRawData} байт";
+                string virtAddr = $"0x{VirtualAddress:X8}";
+                string rawAddr = $"0x{PointerToRawData:X8}";
+
+                Console.WriteLine($"#{i,-3} {name,-15} {virtSize,-15} {virtAddr,-15} {rawSize,-15} {rawAddr,-15} {OutputCharacteristics}");
+            }
+
+            // чтение таблицы импортов
+
+            if (ImportRVA > 0)
+            {
+                uint ImportOffset = RVAToOffset(sections, ImportRVA);
+                reader.BaseStream.Seek(ImportOffset, SeekOrigin.Begin);
+
+                Console.WriteLine("\nИмпорты:");
+
+                while (true)
+                {
+                    uint OriginalFirstThunk = reader.ReadUInt32();
+                    reader.BaseStream.Seek(8, SeekOrigin.Current);
+                    uint NameRVA = reader.ReadUInt32();
+                    reader.BaseStream.Seek(4, SeekOrigin.Current);
+
+                    if (OriginalFirstThunk == 0) // до иницилизированной нулями
+                        break;
+
+                    uint NameOffset = RVAToOffset(sections, NameRVA);
+
+                    long saved = reader.BaseStream.Position;
+                    reader.BaseStream.Seek(NameOffset, SeekOrigin.Begin);
+
+                    string dllName = "";
+                    byte _char;
+
+                    while ((_char = reader.ReadByte()) != 0)
+                        dllName += (char)_char;
+
+                    Console.WriteLine(dllName);
+
+                    reader.BaseStream.Seek(saved, SeekOrigin.Begin);
+                }
+            }
+            else Console.WriteLine("\nТаблица импортов не найдена");
+
+            // чтение таблицы экспортов
+
+            if (ExportRVA > 0)
+            {
+                uint ExportOffset = RVAToOffset(sections, ExportRVA);
+                reader.BaseStream.Seek(ExportOffset, SeekOrigin.Begin);
+
+                Console.WriteLine("\nЭкспорты:");
+
+                reader.BaseStream.Seek(12, SeekOrigin.Current);
+
+                uint nameRva = reader.ReadUInt32();
+                reader.BaseStream.Seek(8, SeekOrigin.Current);
+                uint numberOfNames = reader.ReadUInt32();
+
+                reader.BaseStream.Seek(4, SeekOrigin.Current);
+                uint NamesRVA = reader.ReadUInt32();
+                reader.BaseStream.Seek(4, SeekOrigin.Current);
+
+                uint NameOffset = RVAToOffset(sections, nameRva);
+
+                long saved = reader.BaseStream.Position;
+                reader.BaseStream.Seek(NameOffset, SeekOrigin.Begin);
+
+                string dllName = "";
+                byte _char;
+
+                while ((_char = reader.ReadByte()) != 0)
+                    dllName += (char)_char;
+
+                Console.WriteLine("\nDLL: " + dllName);
+
+                // чтение функций dll
+
+                reader.BaseStream.Seek(saved, SeekOrigin.Begin);
+
+                uint namesOffset = RVAToOffset(sections, NamesRVA);
+                reader.BaseStream.Seek(namesOffset, SeekOrigin.Begin);
+
+                for (int i = 0; i < numberOfNames; i++)
+                {
+                    uint FunctionRVA = reader.ReadUInt32();
+                    uint FunctionOffset = RVAToOffset(sections, FunctionRVA);
+
+                    long Position = reader.BaseStream.Position;
+                    reader.BaseStream.Seek(FunctionOffset, SeekOrigin.Begin);
+
+                    string FunctionName = "";
+                    byte c;
+
+                    while ((c = reader.ReadByte()) != 0)
+                        FunctionName += (char)c;
+
+                    Console.WriteLine("Function: " + FunctionName);
+
+                    reader.BaseStream.Seek(Position, SeekOrigin.Begin);
+                }
+            }
+            else
+            {
+                Console.WriteLine("Таблица экспортов не найдена");
+            }
+
+            Console.WriteLine("\nНажмите любую клавишу для выхода");
+            Console.ReadLine();
         }
     }
 }
